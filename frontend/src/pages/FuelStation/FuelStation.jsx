@@ -28,6 +28,18 @@ const redIcon = new L.Icon({
   shadowSize: [41, 41],
 });
 
+  function RecenterOnUser({ userPos }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (userPos) {
+      map.setView(userPos, 14); // 14 is zoom level, you can change
+    }
+  }, [userPos, map]);
+
+  return null;
+  }
+
 
 export default function FuelStations() {
   const [location, setLocation] = useState("");
@@ -335,6 +347,8 @@ export default function FuelStations() {
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             attribution="&copy; OpenStreetMap contributors"
           />
+          {/* Center map on user position */}
+              <RecenterOnUser userPos={userPos} />
           {userPos && (
             <Marker position={userPos} icon={blueIcon}>
               <Popup>📍 You are here</Popup>

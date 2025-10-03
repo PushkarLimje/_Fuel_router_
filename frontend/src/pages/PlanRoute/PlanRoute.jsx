@@ -1,8 +1,10 @@
 // src/pages/PlanRoute.jsx
-import React, { useState } from "react";
-import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import React, { useState,  useEffect,  useRef} from "react";
+import { MapContainer, TileLayer, Marker, Popup,  useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
+import "leaflet-routing-machine";
+import "leaflet-routing-machine/dist/leaflet-routing-machine.css";
 
 // import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
 // import markerIcon from "leaflet/dist/images/marker-icon.png";
@@ -15,12 +17,125 @@ import L from "leaflet";
 //   shadowUrl: markerShadow,
 // });
 
+const destinationIcon = new L.Icon({
+  iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png",
+  shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41],
+});
+
 const markerIcon = new L.Icon({
   iconUrl: "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png",
   iconSize: [25, 41],
   iconAnchor: [12, 41],
   popupAnchor: [1, -34],
 });
+
+// Helper to recenter map
+function RecenterMap({ bounds }) {
+  const map = useMap();
+  if (bounds) {
+    map.fitBounds(bounds, { padding: [50, 50] });
+  }
+  return null;
+}
+// Example: your traffic API fetch function
+async function fetchTrafficForSegment(lat1, lon1, lat2, lon2) {
+  // Example: call HERE or TomTom or your chosen API
+  // Return a number between 0 and 1 (1 => free, 0.5 => moderate, 0.2 => heavy)
+  // This is pseudocode:
+  
+  const resp = await fetch(
+    `https://trafficapi.example.com/flow?start=${lat1},${lon1}&end=${lat2},${lon2}&apiKey=YOUR_KEY`
+  );
+  const data = await resp.json();
+  return data.flowRatio;
+  
+  return 1; // dummy = free traffic
+}
+
+
+function Routing({ startCoords, destCoords, busyness = 0  }) {
+  const map = useMap();
+  const routingControlRef = useRef(null);
+
+  useEffect(() => {
+    if (!startCoords || !destCoords) return;
+
+    // Remove old route if exists
+    if (routingControlRef.current) {
+      map.removeControl(routingControlRef.current);
+    }
+
+     // Pick color based on busyness
+    let color = "green";
+    if (busyness === 1) color = "orange";
+    if (busyness === 2) color = "red";
+
+    // Create new routing control
+    const control = L.Routing.control({
+      waypoints: [
+        L.latLng(startCoords[0], startCoords[1]),
+        L.latLng(destCoords[0], destCoords[1]),
+      ],
+      lineOptions: {
+        styles: [{ color, weight: 5, opacity: 0.8 }],
+      },
+      createMarker: () => null, // disable extra markers
+      addWaypoints: false,
+      draggableWaypoints: false,
+      fitSelectedRoutes: true,
+    }).addTo(map);
+
+    routingControlRef.current = control;
+
+    // Cleanup on unmount
+    return () => {
+      if (routingControlRef.current) {
+        map.removeControl(routingControlRef.current);
+      }
+    };
+  }, [startCoords, destCoords,busyness, map]);
+
+  return null;
+}
+
+
+// function Routing({ startCoords, destCoords }) {
+//   const map = useMap();
+//   const routingControlRef = useRef(null);
+
+//   useEffect(() => {
+//     if (!startCoords || !destCoords) return;
+
+//      // Remove old route if exists
+//     if (routingControlRef.current) {
+//       map.removeControl(routingControlRef.current);
+//     }
+
+  
+//     L.Routing.control({
+//       waypoints: [
+//         L.latLng(startCoords[0], startCoords[1]),
+//         L.latLng(destCoords[0], destCoords[1]),
+//       ],
+//       lineOptions: {
+//         styles: [{ color: "blue", weight: 4 }],
+//       },
+//       createMarker: () => null, // prevent default markers
+//       addWaypoints: false,
+//       draggableWaypoints: false,
+//       fitSelectedRoutes: true,
+//     }).addTo(map);
+
+//   }, [startCoords, destCoords, map]);
+
+//   return null;
+// }
+
+
 
 export default function PlanRoute() {
   const [formData, setFormData] = useState({
@@ -30,133 +145,63 @@ export default function PlanRoute() {
     fuel: "",
   });
 
+  const [startCoords, setStartCoords] = useState(null);
+  const [destCoords, setDestCoords] = useState(null);
+  const [bounds, setBounds] = useState(null);
   const [center] = useState([20.5937, 78.9629]);    // India default
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = async(e) => {
+  // Fetch coordinates for a place
+  const getCoordinates = async (place) => {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&q=${place}`
+    );
+    const data = await res.json();
+    if (data.length > 0) {
+      return [parseFloat(data[0].lat), parseFloat(data[0].lon)];
+    }
+    return null;
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (formData.start) {
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${formData.start}`
-      );
-      const data = await res.json();
-      if (data.length > 0) {
-        setMapCenter([parseFloat(data[0].lat), parseFloat(data[0].lon)]);
-      }
+    const start = await getCoordinates(formData.start);
+    const dest = await getCoordinates(formData.destination);
+
+    if (start) setStartCoords(start);
+    if (dest) setDestCoords(dest);
+
+    if (start && dest) {
+      setBounds([start, dest]); // fit map to both points
     }
 
-    // later: send this to backend / API
-    console.log("Form Data:", formData);
+    console.log("Trip Data:", formData);
     alert("Route planned! (Mockup)");
   };
 
-  return (
+  // const handleSubmit = async(e) => {
+  //   e.preventDefault();
 
-    // <div className="min-h-screen bg-gray-50 flex flex-col">
-    //   {/* Header */}
-    //   {/* <header className="bg-white shadow-md">
-    //     <div className="max-w-6xl mx-auto px-6 py-4 flex justify-between items-center">
-    //       <h1 className="text-2xl font-bold text-blue-600">Plan Route</h1>
-    //       <nav className="space-x-6">
-    //         <a href="/" className="text-gray-700 hover:text-blue-600">Home</a>
-    //         <a href="/dashboard" className="text-gray-700 hover:text-blue-600">Dashboard</a>
-    //         <a href="/stations" className="text-gray-700 hover:text-blue-600">Fuel Stations</a>
-    //       </nav>
-    //     </div>
-    //   </header> */}
-    //   {/* Main Section */}
-    //   <main className="flex-1 max-w-6xl mx-auto p-6 grid grid-cols-1 md:grid-cols-3 gap-8">
-    //     {/* Route Form */}
-    //     <form
-    //       onSubmit={handleSubmit}
-    //       className="bg-white p-6 rounded-2xl shadow-md space-y-4"
-    //     >
-    //       <h2 className="text-xl font-semibold mb-4">Enter Trip Details</h2>
-    //       <div>
-    //         <label className="block text-gray-600 mb-1">Start Location</label>
-    //         <input
-    //           type="text"
-    //           name="start"
-    //           value={formData.start}
-    //           onChange={handleChange}
-    //           className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-    //           placeholder="Enter starting point"
-    //           required
-    //         />
-    //       </div>
-    //       <div>
-    //         <label className="block text-gray-600 mb-1">Destination</label>
-    //         <input
-    //           type="text"
-    //           name="destination"
-    //           value={formData.destination}
-    //           onChange={handleChange}
-    //           className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-    //           placeholder="Enter destination"
-    //           required
-    //         />
-    //       </div>
-    //       <div>
-    //         <label className="block text-gray-600 mb-1">Car Mileage (km/l)</label>
-    //         <input
-    //           type="number"
-    //           name="mileage"
-    //           value={formData.mileage}
-    //           onChange={handleChange}
-    //           className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-    //           placeholder="e.g. 15"
-    //           required
-    //         />
-    //       </div>
-    //       <div>
-    //         <label className="block text-gray-600 mb-1">Fuel Available (litres)</label>
-    //         <input
-    //           type="number"
-    //           name="fuel"
-    //           value={formData.fuel}
-    //           onChange={handleChange}
-    //           className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-    //           placeholder="e.g. 10"
-    //           required
-    //         />
-    //       </div>
-    //       <button
-    //         type="submit"
-    //         className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition"
-    //       >
-    //         Plan Route
-    //       </button>
-    //     </form>
-    //     {/* Route Preview / Map
-    //     <div className="bg-white p-6 rounded-2xl shadow-md flex flex-col items-center justify-center">
-    //       <h2 className="text-xl font-semibold mb-4">Route Preview</h2>
-    //       <div className="w-full h-80 bg-gray-200 rounded-lg flex items-center justify-center text-gray-500">
-    //         Map will be displayed here
-    //       </div>
-    //     </div> */}
-    //       {/* Right side: Map */}
-    //     <div className="bg-white p-6 rounded-2xl shadow-md flex flex-col">
-    //       <h2 className="text-xl font-semibold mb-4">Map Preview</h2>
-    //       <MapContainer
-    //         center={[20.5937, 78.9629]} // Default: India center
-    //         zoom={5}
-    //         className="w-full h-96 rounded-lg"
-    //       >
-    //         <TileLayer
-    //           attribution='&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a>'
-    //           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-    //         />
-    //         <Marker position={[20.5937, 78.9629]}>
-    //           <Popup>Default Location (India)</Popup>
-    //         </Marker>
-    //       </MapContainer>
-    //     </div>
-    //   </main>
-    // </div>
+  //   if (formData.start) {
+  //     const res = await fetch(
+  //       `https://nominatim.openstreetmap.org/search?format=json&q=${formData.start}`
+  //     );
+  //     const data = await res.json();
+  //     if (data.length > 0) {
+  //       setMapCenter([parseFloat(data[0].lat), parseFloat(data[0].lon)]);
+  //     }
+  //   }
+
+  //   // later: send this to backend / API
+  //   console.log("Form Data:", formData);
+  //   alert("Route planned! (Mockup)");
+  // };
+
+  return (
 
      <div className="flex h-[90vh] bg-gray-50">
       {/* Left Panel */}
@@ -235,13 +280,36 @@ export default function PlanRoute() {
         <MapContainer
           center={center}
           zoom={5}
-          className="h-full w-full rounded-r-lg"
+          // className="h-full w-full rounded-r-lg"
+          style={{ height: "100%", width: "100%" }}
         >
           <TileLayer
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            attribution="© OpenStreetMap contributors"
+            attribution="&copy; © OpenStreetMap contributors"
           />
-          <Marker position={center} icon={markerIcon} />
+          {/* <Marker position={center} icon={markerIcon} /> */}
+
+           {/* Recenter map if bounds set */}
+          {/* <RecenterMap bounds={bounds} /> */}
+
+          {/* Start Marker */}
+          {startCoords && (
+            <Marker position={startCoords} icon={markerIcon}>
+              <Popup>Start: {formData.start}</Popup>
+            </Marker>
+          )}
+
+          {/* Destination Marker */}
+          {destCoords && (
+            <Marker position={destCoords} icon={destinationIcon}>
+              <Popup>Destination: {formData.destination}</Popup>
+            </Marker>
+          )}
+
+          {/* Route Line */}
+            {startCoords && destCoords && (
+              <Routing startCoords={startCoords} destCoords={destCoords} busyness={0} />
+            )}
         </MapContainer>
       </div>
     </div>
