@@ -1,21 +1,13 @@
 // src/pages/PlanRoute.jsx
-import React, { useState,  useEffect,  useRef} from "react";
-import { MapContainer, TileLayer, Marker, Popup,  useMap } from "react-leaflet";
+import React, { useState, useEffect, useRef } from "react";
+import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import "leaflet-routing-machine";
 import "leaflet-routing-machine/dist/leaflet-routing-machine.css";
+import api from "../../api/axiosConfig";
 
-// import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
-// import markerIcon from "leaflet/dist/images/marker-icon.png";
-// import markerShadow from "leaflet/dist/images/marker-shadow.png";
-// Fix Leaflet's default icon issue with React
-// delete L.Icon.Default.prototype._getIconUrl;
-// L.Icon.Default.mergeOptions({
-//   iconRetinaUrl: markerIcon2x,
-//   iconUrl: markerIcon,
-//   shadowUrl: markerShadow,
-// });
+const TOMTOM_API_KEY = import.meta.env.VITE_TOMTOM_KEY;
 
 const destinationIcon = new L.Icon({
   iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png",
@@ -33,48 +25,22 @@ const markerIcon = new L.Icon({
   popupAnchor: [1, -34],
 });
 
-// Helper to recenter map
-function RecenterMap({ bounds }) {
-  const map = useMap();
-  if (bounds) {
-    map.fitBounds(bounds, { padding: [50, 50] });
-  }
-  return null;
-}
-// Example: your traffic API fetch function
-async function fetchTrafficForSegment(lat1, lon1, lat2, lon2) {
-  // Example: call HERE or TomTom or your chosen API
-  // Return a number between 0 and 1 (1 => free, 0.5 => moderate, 0.2 => heavy)
-  // This is pseudocode:
-  
-  const resp = await fetch(
-    `https://trafficapi.example.com/flow?start=${lat1},${lon1}&end=${lat2},${lon2}&apiKey=YOUR_KEY`
-  );
-  const data = await resp.json();
-  return data.flowRatio;
-  
-  return 1; // dummy = free traffic
-}
-
-
-function Routing({ startCoords, destCoords, busyness = 0  }) {
+// Routing component
+function Routing({ startCoords, destCoords, busyness = 0 }) {
   const map = useMap();
   const routingControlRef = useRef(null);
 
   useEffect(() => {
     if (!startCoords || !destCoords) return;
 
-    // Remove old route if exists
     if (routingControlRef.current) {
       map.removeControl(routingControlRef.current);
     }
 
-     // Pick color based on busyness
     let color = "green";
     if (busyness === 1) color = "orange";
     if (busyness === 2) color = "red";
 
-    // Create new routing control
     const control = L.Routing.control({
       waypoints: [
         L.latLng(startCoords[0], startCoords[1]),
@@ -83,7 +49,7 @@ function Routing({ startCoords, destCoords, busyness = 0  }) {
       lineOptions: {
         styles: [{ color, weight: 5, opacity: 0.8 }],
       },
-      createMarker: () => null, // disable extra markers
+      createMarker: () => null,
       addWaypoints: false,
       draggableWaypoints: false,
       fitSelectedRoutes: true,
@@ -91,51 +57,15 @@ function Routing({ startCoords, destCoords, busyness = 0  }) {
 
     routingControlRef.current = control;
 
-    // Cleanup on unmount
     return () => {
       if (routingControlRef.current) {
         map.removeControl(routingControlRef.current);
       }
     };
-  }, [startCoords, destCoords,busyness, map]);
+  }, [startCoords, destCoords, busyness, map]);
 
   return null;
 }
-
-
-// function Routing({ startCoords, destCoords }) {
-//   const map = useMap();
-//   const routingControlRef = useRef(null);
-
-//   useEffect(() => {
-//     if (!startCoords || !destCoords) return;
-
-//      // Remove old route if exists
-//     if (routingControlRef.current) {
-//       map.removeControl(routingControlRef.current);
-//     }
-
-  
-//     L.Routing.control({
-//       waypoints: [
-//         L.latLng(startCoords[0], startCoords[1]),
-//         L.latLng(destCoords[0], destCoords[1]),
-//       ],
-//       lineOptions: {
-//         styles: [{ color: "blue", weight: 4 }],
-//       },
-//       createMarker: () => null, // prevent default markers
-//       addWaypoints: false,
-//       draggableWaypoints: false,
-//       fitSelectedRoutes: true,
-//     }).addTo(map);
-
-//   }, [startCoords, destCoords, map]);
-
-//   return null;
-// }
-
-
 
 export default function PlanRoute() {
   const [formData, setFormData] = useState({
@@ -147,8 +77,11 @@ export default function PlanRoute() {
 
   const [startCoords, setStartCoords] = useState(null);
   const [destCoords, setDestCoords] = useState(null);
-  const [bounds, setBounds] = useState(null);
-  const [center] = useState([20.5937, 78.9629]);    // India default
+  const [routeData, setRouteData] = useState(null);
+  const [routeInfo, setRouteInfo] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [calculating, setCalculating] = useState(false);
+  const [center] = useState([20.5937, 78.9629]);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -168,44 +101,110 @@ export default function PlanRoute() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setCalculating(true);
+    setRouteInfo(null);
 
-    const start = await getCoordinates(formData.start);
-    const dest = await getCoordinates(formData.destination);
+    try {
+      const start = await getCoordinates(formData.start);
+      const dest = await getCoordinates(formData.destination);
 
-    if (start) setStartCoords(start);
-    if (dest) setDestCoords(dest);
+      if (!start || !dest) {
+        alert("Could not find coordinates for the entered locations");
+        setCalculating(false);
+        return;
+      }
 
-    if (start && dest) {
-      setBounds([start, dest]); // fit map to both points
+      setStartCoords(start);
+      setDestCoords(dest);
+
+      // Fetch route from TomTom
+      const url = `https://api.tomtom.com/routing/1/calculateRoute/${start[0]},${start[1]}:${dest[0]},${dest[1]}/json?traffic=true&key=${TOMTOM_API_KEY}`;
+      const res = await fetch(url);
+      const data = await res.json();
+
+      console.log("TomTom Route Data:", data);
+      setRouteData(data);
+
+      // Extract route information
+      if (data.routes && data.routes.length > 0) {
+        const route = data.routes[0];
+        const summary = route.summary;
+
+        const distanceKm = (summary.lengthInMeters / 1000).toFixed(2);
+        const durationMin = Math.round(summary.travelTimeInSeconds / 60);
+        const fuelRequired = formData.mileage
+          ? (parseFloat(distanceKm) / parseFloat(formData.mileage)).toFixed(2)
+          : 0;
+
+        // Save only start and end coordinates (much smaller)
+        const pathCoordinates = [
+          { lat: start[0], lng: start[1] },
+          { lat: dest[0], lng: dest[1] }
+        ];
+
+        const routeInformation = {
+          source: formData.start,
+          destination: formData.destination,
+          distance: parseFloat(distanceKm),
+          duration: durationMin,
+          fuelRequired: parseFloat(fuelRequired),
+          pathCoordinates: pathCoordinates,
+        };
+
+        setRouteInfo(routeInformation);
+        alert("Route calculated successfully!");
+      }
+    } catch (error) {
+      console.error("Error calculating route:", error);
+      alert("Failed to calculate route. Please try again.");
+    } finally {
+      setCalculating(false);
     }
-
-    console.log("Trip Data:", formData);
-    alert("Route planned! (Mockup)");
   };
 
-  // const handleSubmit = async(e) => {
-  //   e.preventDefault();
+  // Save route to database
+  const handleSaveRoute = async () => {
+    if (!routeInfo) {
+      alert("Please plan a route first!");
+      return;
+    }
 
-  //   if (formData.start) {
-  //     const res = await fetch(
-  //       `https://nominatim.openstreetmap.org/search?format=json&q=${formData.start}`
-  //     );
-  //     const data = await res.json();
-  //     if (data.length > 0) {
-  //       setMapCenter([parseFloat(data[0].lat), parseFloat(data[0].lon)]);
-  //     }
-  //   }
+    setSaving(true);
+    try {
+      const response = await api.post("/routes", routeInfo);
+      console.log("Route saved:", response.data);
+      alert("Route saved successfully to database!");
 
-  //   // later: send this to backend / API
-  //   console.log("Form Data:", formData);
-  //   alert("Route planned! (Mockup)");
-  // };
+      // Reset form after saving
+      setFormData({
+        start: "",
+        destination: "",
+        mileage: "",
+        fuel: "",
+      });
+      setStartCoords(null);
+      setDestCoords(null);
+      setRouteInfo(null);
+      setRouteData(null);
+    } catch (error) {
+      console.error("Error saving route:", error);
+      alert(error.response?.data?.message || "Failed to save route");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Check if user has enough fuel
+  const hasEnoughFuel = () => {
+    if (!routeInfo || !formData.fuel || !formData.mileage) return true;
+    const fuelAvailable = parseFloat(formData.fuel);
+    return fuelAvailable >= routeInfo.fuelRequired;
+  };
 
   return (
-
-     <div className="flex h-[90vh] bg-gray-50">
+    <div className="flex h-[90vh] bg-gray-50">
       {/* Left Panel */}
-      <div className="w-1/4 bg-white shadow-md p-6 border-r border-gray-200">
+      <div className="w-1/4 bg-white shadow-md p-6 border-r border-gray-200 overflow-y-auto">
         <h2 className="text-xl font-semibold text-blue-600 mb-4">
           Enter Trip Details
         </h2>
@@ -246,6 +245,7 @@ export default function PlanRoute() {
               value={formData.mileage}
               onChange={handleChange}
               placeholder="e.g. 15"
+              step="0.1"
               className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
               required
             />
@@ -261,6 +261,7 @@ export default function PlanRoute() {
               value={formData.fuel}
               onChange={handleChange}
               placeholder="e.g. 10"
+              step="0.1"
               className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
               required
             />
@@ -268,11 +269,71 @@ export default function PlanRoute() {
 
           <button
             type="submit"
-            className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition"
+            disabled={calculating}
+            className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
-            Plan Route
+            {calculating ? "Calculating..." : "Plan Route"}
           </button>
+
+          {routeInfo && (
+            <button
+              type="button"
+              onClick={handleSaveRoute}
+              disabled={saving}
+              className="w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed"
+            >
+              {saving ? "Saving..." : "Save Route to Database"}
+            </button>
+          )}
         </form>
+
+        {/* Route Summary */}
+        {routeInfo && (
+          <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <h3 className="font-semibold text-blue-700 mb-3 text-lg">
+              Route Summary
+            </h3>
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <span className="text-gray-600">Distance:</span>
+                <span className="font-semibold">{routeInfo.distance} km</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Duration:</span>
+                <span className="font-semibold">
+                  {Math.floor(routeInfo.duration / 60)}h {routeInfo.duration % 60}min
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Fuel Required:</span>
+                <span className="font-semibold">{routeInfo.fuelRequired} L</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Fuel Available:</span>
+                <span className="font-semibold">{formData.fuel} L</span>
+              </div>
+            </div>
+
+            {/* Fuel Status */}
+            {!hasEnoughFuel() && (
+              <div className="mt-3 p-3 bg-red-100 border border-red-300 rounded-lg">
+                <p className="text-red-700 text-sm font-semibold">
+                  ⚠️ Warning: Insufficient fuel!
+                </p>
+                <p className="text-red-600 text-xs mt-1">
+                  You need {(routeInfo.fuelRequired - parseFloat(formData.fuel)).toFixed(2)} L more fuel
+                </p>
+              </div>
+            )}
+            {hasEnoughFuel() && formData.fuel && (
+              <div className="mt-3 p-3 bg-green-100 border border-green-300 rounded-lg">
+                <p className="text-green-700 text-sm font-semibold">
+                  ✅ You have enough fuel for this trip!
+                </p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Right Panel - Map */}
@@ -280,36 +341,39 @@ export default function PlanRoute() {
         <MapContainer
           center={center}
           zoom={5}
-          // className="h-full w-full rounded-r-lg"
           style={{ height: "100%", width: "100%" }}
         >
           <TileLayer
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            attribution="&copy; © OpenStreetMap contributors"
+            attribution="&copy; OpenStreetMap contributors"
           />
-          {/* <Marker position={center} icon={markerIcon} /> */}
-
-           {/* Recenter map if bounds set */}
-          {/* <RecenterMap bounds={bounds} /> */}
 
           {/* Start Marker */}
           {startCoords && (
             <Marker position={startCoords} icon={markerIcon}>
-              <Popup>Start: {formData.start}</Popup>
+              <Popup>
+                <strong>Start:</strong> {formData.start}
+              </Popup>
             </Marker>
           )}
 
           {/* Destination Marker */}
           {destCoords && (
             <Marker position={destCoords} icon={destinationIcon}>
-              <Popup>Destination: {formData.destination}</Popup>
+              <Popup>
+                <strong>Destination:</strong> {formData.destination}
+              </Popup>
             </Marker>
           )}
 
           {/* Route Line */}
-            {startCoords && destCoords && (
-              <Routing startCoords={startCoords} destCoords={destCoords} busyness={0} />
-            )}
+          {startCoords && destCoords && (
+            <Routing
+              startCoords={startCoords}
+              destCoords={destCoords}
+              busyness={0}
+            />
+          )}
         </MapContainer>
       </div>
     </div>

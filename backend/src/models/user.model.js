@@ -45,6 +45,10 @@ const userSchema = new mongoose.Schema(
     refreshToken: {
       type: String,
     },
+    city: { 
+    type: String, 
+    default: "Pune" // Your location from prompt
+  },
   },
   { timestamps: true }
 );
