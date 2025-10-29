@@ -75,13 +75,12 @@ const uploadPDFOnCloudinary = async (localFilePath) => {
     console.log("📤 Uploading PDF to Cloudinary:", localFilePath);
 
     const response = await cloudinary.uploader.upload(localFilePath, {
-      resource_type: "auto",     // Let Cloudinary detect type
+      resource_type: "auto",        // Use 'auto' instead of 'raw'
       folder: "reports",
       public_id: `report_${Date.now()}`,
-      type: "upload",            // Use 'upload' type (not 'private')
-      access_control: [{         // Set access control
-        access_type: "anonymous"
-      }]
+      access_mode: "public",        // Ensure public access
+      type: "upload"                // Standard upload type
+      
     });
 
     // Delete local file after upload

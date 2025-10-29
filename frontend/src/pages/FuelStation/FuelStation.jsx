@@ -1,15 +1,13 @@
 // src/pages/FuelStations.jsx
-import React, { useState,useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import "leaflet/dist/leaflet.css";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 
 // Custom blue icon for user
 const blueIcon = new L.Icon({
-  iconUrl:
-    "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png",
-  shadowUrl:
-    "https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png",
+  iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png",
+  shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png",
   iconSize: [25, 41],
   iconAnchor: [12, 41],
   popupAnchor: [1, -34],
@@ -18,35 +16,32 @@ const blueIcon = new L.Icon({
 
 // Custom red icon for petrol pumps
 const redIcon = new L.Icon({
-  iconUrl:
-    "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png",
-  shadowUrl:
-    "https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png",
+  iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png",
+  shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png",
   iconSize: [25, 41],
   iconAnchor: [12, 41],
   popupAnchor: [1, -34],
   shadowSize: [41, 41],
 });
 
-  function RecenterOnUser({ userPos }) {
+function RecenterOnUser({ userPos }) {
   const map = useMap();
 
   useEffect(() => {
     if (userPos) {
-      map.setView(userPos, 14); // 14 is zoom level, you can change
+      map.setView(userPos, 14);
     }
   }, [userPos, map]);
 
   return null;
-  }
-
+}
 
 export default function FuelStations() {
   const [location, setLocation] = useState("");
-  
   const [userPos, setUserPos] = useState(null);
   const [stations, setStations] = useState([]);
- 
+  const [searching, setSearching] = useState(false);
+
   // Get user current location
   useEffect(() => {
     if (navigator.geolocation) {
@@ -58,63 +53,6 @@ export default function FuelStations() {
       );
     }
   }, []);
-
-  // Handle search
-  // const handleSearch = async (e) => {
-  //   e.preventDefault();
-  //   if (!location) return;
-
-  //   // Search city center first
-  //   const cityRes = await fetch(
-  //     `https://nominatim.openstreetmap.org/search?city=${location}&format=json&limit=1`
-  //   );
-  //   const cityData = await cityRes.json();
-
-  //   if (cityData.length === 0) {
-  //     alert("City not found");
-  //     return;
-  //   }
-
-  //   const { lat, lon } = cityData[0];
-
-  //   // Find petrol pumps in that city
-  //   const stationsRes = await fetch(
-  //     `https://overpass-api.de/api/interpreter?data=[out:json];node["amenity"="fuel"](around:5000,${lat},${lon});out;`
-  //   );
-  //   const stationsData = await stationsRes.json();
-
-  //   const pumps = stationsData.elements.map((el, idx) => ({
-  //     id: idx,
-  //     name: el.tags.name || "Petrol Pump",
-  //     lat: el.lat,
-  //     lng: el.lon,
-  //   }));
-
-  //   setStations(pumps);
-  // };
-
-  const handleSearch = async (e) => {
-  e.preventDefault();
-  if (!location) return;
-
-  // Search city center first
-  const cityRes = await fetch(
-    `https://nominatim.openstreetmap.org/search?city=${location}&format=json&limit=1`
-  );
-  const cityData = await cityRes.json();
-
-  if (cityData.length === 0) {
-    alert("City not found");
-    return;
-  }
-
-  const { lat, lon } = cityData[0];
-
-  // Find petrol pumps in that city (within 5 km)
-  const stationsRes = await fetch(
-    `https://overpass-api.de/api/interpreter?data=[out:json];node["amenity"="fuel"](around:5000,${lat},${lon});out;`
-  );
-  const stationsData = await stationsRes.json();
 
   // Haversine distance helper
   function getDistance(lat1, lon1, lat2, lon2) {
@@ -131,213 +69,220 @@ export default function FuelStations() {
     return R * c;
   }
 
-  // User location for distance
-  let userLat = null, userLng = null;
-  if (navigator.geolocation) {
-    await new Promise((resolve) => {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          userLat = pos.coords.latitude;
-          userLng = pos.coords.longitude;
-          resolve();
-        },
-        () => resolve() // fallback: no user location
+  // Handle search
+  const handleSearch = async (e) => {
+    e.preventDefault();
+    if (!location) return;
+
+    setSearching(true);
+
+    try {
+      // Search city center first
+      const cityRes = await fetch(
+        `https://nominatim.openstreetmap.org/search?city=${location}&format=json&limit=1`
       );
-    });
-  }
+      const cityData = await cityRes.json();
 
-  // Map station data with extra info
-  const pumps = stationsData.elements.map((el, idx) => {
-    let distance = null;
-    let time = null;
+      if (cityData.length === 0) {
+        alert("City not found");
+        setSearching(false);
+        return;
+      }
 
-    if (userLat && userLng) {
-      const d = getDistance(userLat, userLng, el.lat, el.lon);
-      distance = d.toFixed(2) + " km";
-      time = Math.round((d / 40) * 60) + " mins";   // assume 40km/h
+      const { lat, lon } = cityData[0];
+
+      // Find petrol pumps in that city (within 5 km)
+      const stationsRes = await fetch(
+        `https://overpass-api.de/api/interpreter?data=[out:json];node["amenity"="fuel"](around:5000,${lat},${lon});out;`
+      );
+      const stationsData = await stationsRes.json();
+
+      // User location for distance
+      let userLat = null,
+        userLng = null;
+      if (navigator.geolocation) {
+        await new Promise((resolve) => {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              userLat = pos.coords.latitude;
+              userLng = pos.coords.longitude;
+              resolve();
+            },
+            () => resolve()
+          );
+        });
+      }
+
+      // Map station data with extra info
+      const pumps = stationsData.elements.map((el, idx) => {
+        let distance = null;
+        let time = null;
+
+        if (userLat && userLng) {
+          const d = getDistance(userLat, userLng, el.lat, el.lon);
+          distance = d.toFixed(2) + " km";
+          time = Math.round((d / 40) * 60) + " mins";
+        }
+
+        return {
+          id: idx,
+          name: el.tags?.name || "Petrol Pump",
+          lat: el.lat,
+          lng: el.lon,
+          fuels: ["Petrol", "Diesel", "CNG"],
+          distance,
+          time,
+        };
+      });
+
+      setStations(pumps);
+    } catch (error) {
+      console.error("Error searching stations:", error);
+      alert("Failed to search stations");
+    } finally {
+      setSearching(false);
     }
+  };
 
-    return {
-      id: idx,
-      name: el.tags?.name || "Petrol Pump",
-      lat: el.lat,
-      lng: el.lon,
-      fuels: ["Petrol", "Diesel", "CNG"], // mock fuel types
-      distance,
-      time,
-    };
-  });
-
-  setStations(pumps);
-};
-
-
-  // return (
-  //   <div className="min-h-screen bg-gray-50 flex flex-col">
-
-  //     {/* Main Section */}
-  //     <main className="flex-1 max-w-6xl mx-auto p-6 grid grid-cols-1 md:grid-cols-3 gap-8">
-  //       {/* Left - Search & List */}
-  //       <div className="md:col-span-1">
-  //         {/* Search Form */}
-  //         <form
-  //           onSubmit={handleSearch}
-  //           className="bg-white p-6 rounded-2xl shadow-md mb-6"
-  //         >
-  //           <h2 className="text-lg font-semibold mb-4">Search Stations</h2>
-  //           <input
-  //             type="text"
-  //             value={location}
-  //             onChange={(e) => setLocation(e.target.value)}
-  //             className="w-full p-2 border rounded-lg mb-4 focus:ring-2 focus:ring-blue-500"
-  //             placeholder="Enter city or area"
-  //             required
-  //           />
-  //           <button
-  //             type="submit"
-  //             className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition"
-  //           >
-  //             Search
-  //           </button>
-  //         </form>
-
-  //         {/* Stations List */}
-  //         {/* <div className="bg-white p-6 rounded-2xl shadow-md">
-  //           <h2 className="text-lg font-semibold mb-4">Nearby Stations</h2>
-  //           <ul className="space-y-4">
-  //             {stations.map((station) => (
-  //               <li
-  //                 key={station.id}
-  //                 className="p-4 border rounded-lg hover:bg-gray-50 transition"
-  //               >
-  //                 <h3 className="font-bold text-gray-800">{station.name}</h3>
-  //                 <p className="text-sm text-gray-600">Distance: {station.distance}</p>
-  //                 <p className="text-sm text-gray-600">Price: {station.price}</p>
-  //               </li>
-  //             ))}
-  //           </ul>
-  //         </div> */}
-
-  //         {/* Stations List */}
-  //           <div className="bg-white p-6 rounded-2xl shadow-md">
-  //             <h2 className="text-lg font-semibold mb-4">Nearby Stations</h2>
-  //             <ul className="space-y-4">
-  //               {stations.map((station) => (
-  //                 <li
-  //                   key={station.id}
-  //                   className="p-4 border rounded-lg hover:bg-gray-50 transition"
-  //                 >
-  //                   <h3 className="font-bold text-gray-800">{station.name}</h3>
-  //                   {station.distance && (
-  //                     <p className="text-sm text-gray-600">Distance: {station.distance}</p>
-  //                   )}
-  //                   {station.time && (
-  //                     <p className="text-sm text-gray-600">Travel Time: {station.time}</p>
-  //                   )}
-  //                   <p className="text-sm text-gray-600">
-  //                     Fuels: {station.fuels.join(", ")}
-  //                   </p>
-  //                 </li>
-  //               ))}
-  //             </ul>
-  //           </div>
-
-  //       </div>
-
-  //       {/* Right - Map */}
-  //       <div className="md:col-span-2 bg-white p-6 rounded-2xl shadow-md flex flex-col">
-  //         <h2 className="text-lg font-semibold mb-4">Map</h2>
-  //         <div className="flex-1 rounded-lg overflow-hidden">
-  //           <MapContainer
-  //             center={userPos || [20.5937, 78.9629]} // India center fallback
-  //             zoom={12}
-  //             style={{ height: "500px", width: "100%" }}
-  //           >
-  //             <TileLayer
-  //               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-  //               attribution="&copy; OpenStreetMap contributors"
-  //             />
-
-  //             {/* User Location */}
-  //             {userPos && (
-  //               <Marker position={userPos} icon={blueIcon}>
-  //                 <Popup>📍 You are here</Popup>
-  //               </Marker>
-  //             )}
-
-  //             {/* Petrol Stations */}
-  //             {stations.map((station) => (
-  //               <Marker
-  //                 key={station.id}
-  //                 position={[station.lat, station.lng]}
-  //                 icon={redIcon}
-  //               >
-  //                 {/* <Popup>⛽ {station.name}</Popup> */}
-  //                 <Popup>
-  //                   <b>{station.name}</b> <br />
-  //                   {station.distance && <>📍 {station.distance} <br /></>}
-  //                   {station.time && <>⏱ {station.time} <br /></>}
-  //                   Fuels: {station.fuels.join(", ")}
-  //                 </Popup>
-
-  //               </Marker>
-  //             ))}
-  //           </MapContainer>
-  //         </div>
-  //       </div>
-  //     </main>
-  //   </div>
-  // );
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className="flex h-screen bg-gradient-to-br from-gray-50 to-blue-50">
       {/* Left Panel */}
-      <div className="w-80 bg-white shadow-lg p-6 flex flex-col">
-        <h1 className="text-xl font-bold mb-6 text-blue-600">Fuel Stations</h1>
+      <div className="w-96 bg-white shadow-2xl flex flex-col border-r border-gray-200">
+        {/* Header */}
+        <div className="p-6 bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="p-2 bg-white/20 rounded-lg">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </div>
+            <h1 className="text-2xl font-bold">Fuel Stations</h1>
+          </div>
+          <p className="text-blue-100 text-sm">Find nearby fuel stations</p>
+        </div>
 
-        {/* Search */}
-        <form onSubmit={handleSearch} className="mb-6">
-          <input
-            type="text"
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
-            className="w-full p-2 border rounded-lg mb-3 focus:ring-2 focus:ring-blue-500"
-            placeholder="Enter city or area"
-          />
-          <button
-            type="submit"
-            className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition"
-          >
-            Search
-          </button>
-        </form>
+        {/* Search Form */}
+        <div className="p-6 border-b border-gray-200 bg-gray-50">
+          <form onSubmit={handleSearch} className="space-y-3">
+            <div className="relative">
+              <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input
+                type="text"
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                placeholder="Enter city or area..."
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={searching}
+              className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 rounded-xl font-semibold hover:shadow-lg transform hover:scale-[1.02] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {searching ? (
+                <>
+                  <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Searching...
+                </>
+              ) : (
+                <>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  Search
+                </>
+              )}
+            </button>
+          </form>
+        </div>
 
-        {/* Results */}
-        <h2 className="text-lg font-semibold mb-3">Nearby Stations</h2>
-        <div className="flex-1 overflow-y-auto">
-          <ul className="space-y-3">
-            {stations.map((station) => (
-              <li
-                key={station.id}
-                className="p-3 border rounded-lg hover:bg-gray-50 transition"
-              >
-                <h3 className="font-bold text-gray-800">{station.name}</h3>
-                {station.distance && (
-                  <p className="text-sm text-gray-600">📍 {station.distance}</p>
-                )}
-                {station.time && (
-                  <p className="text-sm text-gray-600">⏱ {station.time}</p>
-                )}
-                <p className="text-sm text-gray-600">
-                  Fuels: {station.fuels.join(", ")}
-                </p>
-              </li>
-            ))}
-          </ul>
+        {/* Results Header */}
+        <div className="px-6 py-4 bg-white border-b border-gray-200">
+          <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+            <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+            </svg>
+            Nearby Stations
+            <span className="ml-auto text-sm font-normal text-gray-500">
+              {stations.length} found
+            </span>
+          </h2>
+        </div>
+
+        {/* Results List */}
+        <div className="flex-1 overflow-y-auto p-4">
+          {stations.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full text-center px-4">
+              <svg className="w-16 h-16 text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              <p className="text-gray-500 font-medium">No stations found</p>
+              <p className="text-gray-400 text-sm mt-1">
+                Search for a city to find fuel stations
+              </p>
+            </div>
+          ) : (
+            <ul className="space-y-3">
+              {stations.map((station) => (
+                <li
+                  key={station.id}
+                  className="bg-white p-4 rounded-xl border border-gray-200 hover:shadow-md hover:border-blue-300 transition-all cursor-pointer group"
+                >
+                  <div className="flex items-start justify-between mb-2">
+                    <h3 className="font-bold text-gray-800 group-hover:text-blue-600 transition-colors">
+                      {station.name}
+                    </h3>
+                    <div className="p-1 bg-red-100 rounded-lg">
+                      <svg className="w-4 h-4 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                  </div>
+
+                  {station.distance && (
+                    <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                      </svg>
+                      <span className="font-medium">{station.distance}</span>
+                    </div>
+                  )}
+
+                  {station.time && (
+                    <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <span className="font-medium">{station.time}</span>
+                    </div>
+                  )}
+
+                  <div className="flex gap-2 mt-3">
+                    {station.fuels.map((fuel, idx) => (
+                      <span
+                        key={idx}
+                        className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-lg"
+                      >
+                        {fuel}
+                      </span>
+                    ))}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </div>
 
       {/* Right Side Map */}
-      <div className="flex-1">
+      <div className="flex-1 relative">
         <MapContainer
           center={userPos || [20.5937, 78.9629]}
           zoom={12}
@@ -347,8 +292,7 @@ export default function FuelStations() {
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             attribution="&copy; OpenStreetMap contributors"
           />
-          {/* Center map on user position */}
-              <RecenterOnUser userPos={userPos} />
+          <RecenterOnUser userPos={userPos} />
           {userPos && (
             <Marker position={userPos} icon={blueIcon}>
               <Popup>📍 You are here</Popup>
@@ -362,14 +306,412 @@ export default function FuelStations() {
             >
               <Popup>
                 <b>{station.name}</b> <br />
-                {station.distance && <>📍 {station.distance} <br /></>}
-                {station.time && <>⏱ {station.time} <br /></>}
+                {station.distance && (
+                  <>
+                    📍 {station.distance} <br />
+                  </>
+                )}
+                {station.time && (
+                  <>
+                    ⏱ {station.time} <br />
+                  </>
+                )}
                 Fuels: {station.fuels.join(", ")}
               </Popup>
             </Marker>
           ))}
         </MapContainer>
+
+        {/* Floating Info Card */}
+        {userPos && (
+          <div className="absolute top-4 right-4 bg-white rounded-xl shadow-lg p-4 border border-gray-200 z-[1000]">
+            <div className="flex items-center gap-2 text-sm">
+              <div className="p-2 bg-green-100 rounded-lg">
+                <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <span className="font-medium text-gray-700">Location Active</span>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 }
+
+// // src/pages/FuelStations.jsx
+// import React, { useState,useEffect } from "react";
+// import "leaflet/dist/leaflet.css";
+// import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
+// import L from "leaflet";
+
+// // Custom blue icon for user
+// const blueIcon = new L.Icon({
+//   iconUrl:
+//     "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png",
+//   shadowUrl:
+//     "https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png",
+//   iconSize: [25, 41],
+//   iconAnchor: [12, 41],
+//   popupAnchor: [1, -34],
+//   shadowSize: [41, 41],
+// });
+
+// // Custom red icon for petrol pumps
+// const redIcon = new L.Icon({
+//   iconUrl:
+//     "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png",
+//   shadowUrl:
+//     "https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png",
+//   iconSize: [25, 41],
+//   iconAnchor: [12, 41],
+//   popupAnchor: [1, -34],
+//   shadowSize: [41, 41],
+// });
+
+//   function RecenterOnUser({ userPos }) {
+//   const map = useMap();
+
+//   useEffect(() => {
+//     if (userPos) {
+//       map.setView(userPos, 14); // 14 is zoom level, you can change
+//     }
+//   }, [userPos, map]);
+
+//   return null;
+//   }
+
+
+// export default function FuelStations() {
+//   const [location, setLocation] = useState("");
+  
+//   const [userPos, setUserPos] = useState(null);
+//   const [stations, setStations] = useState([]);
+ 
+//   // Get user current location
+//   useEffect(() => {
+//     if (navigator.geolocation) {
+//       navigator.geolocation.getCurrentPosition(
+//         (pos) => {
+//           setUserPos([pos.coords.latitude, pos.coords.longitude]);
+//         },
+//         () => alert("Could not get your location")
+//       );
+//     }
+//   }, []);
+
+//   // Handle search
+//   // const handleSearch = async (e) => {
+//   //   e.preventDefault();
+//   //   if (!location) return;
+
+//   //   // Search city center first
+//   //   const cityRes = await fetch(
+//   //     `https://nominatim.openstreetmap.org/search?city=${location}&format=json&limit=1`
+//   //   );
+//   //   const cityData = await cityRes.json();
+
+//   //   if (cityData.length === 0) {
+//   //     alert("City not found");
+//   //     return;
+//   //   }
+
+//   //   const { lat, lon } = cityData[0];
+
+//   //   // Find petrol pumps in that city
+//   //   const stationsRes = await fetch(
+//   //     `https://overpass-api.de/api/interpreter?data=[out:json];node["amenity"="fuel"](around:5000,${lat},${lon});out;`
+//   //   );
+//   //   const stationsData = await stationsRes.json();
+
+//   //   const pumps = stationsData.elements.map((el, idx) => ({
+//   //     id: idx,
+//   //     name: el.tags.name || "Petrol Pump",
+//   //     lat: el.lat,
+//   //     lng: el.lon,
+//   //   }));
+
+//   //   setStations(pumps);
+//   // };
+
+//   const handleSearch = async (e) => {
+//   e.preventDefault();
+//   if (!location) return;
+
+//   // Search city center first
+//   const cityRes = await fetch(
+//     `https://nominatim.openstreetmap.org/search?city=${location}&format=json&limit=1`
+//   );
+//   const cityData = await cityRes.json();
+
+//   if (cityData.length === 0) {
+//     alert("City not found");
+//     return;
+//   }
+
+//   const { lat, lon } = cityData[0];
+
+//   // Find petrol pumps in that city (within 5 km)
+//   const stationsRes = await fetch(
+//     `https://overpass-api.de/api/interpreter?data=[out:json];node["amenity"="fuel"](around:5000,${lat},${lon});out;`
+//   );
+//   const stationsData = await stationsRes.json();
+
+//   // Haversine distance helper
+//   function getDistance(lat1, lon1, lat2, lon2) {
+//     const R = 6371; // km
+//     const dLat = ((lat2 - lat1) * Math.PI) / 180;
+//     const dLon = ((lon2 - lon1) * Math.PI) / 180;
+//     const a =
+//       Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+//       Math.cos((lat1 * Math.PI) / 180) *
+//         Math.cos((lat2 * Math.PI) / 180) *
+//         Math.sin(dLon / 2) *
+//         Math.sin(dLon / 2);
+//     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+//     return R * c;
+//   }
+
+//   // User location for distance
+//   let userLat = null, userLng = null;
+//   if (navigator.geolocation) {
+//     await new Promise((resolve) => {
+//       navigator.geolocation.getCurrentPosition(
+//         (pos) => {
+//           userLat = pos.coords.latitude;
+//           userLng = pos.coords.longitude;
+//           resolve();
+//         },
+//         () => resolve() // fallback: no user location
+//       );
+//     });
+//   }
+
+//   // Map station data with extra info
+//   const pumps = stationsData.elements.map((el, idx) => {
+//     let distance = null;
+//     let time = null;
+
+//     if (userLat && userLng) {
+//       const d = getDistance(userLat, userLng, el.lat, el.lon);
+//       distance = d.toFixed(2) + " km";
+//       time = Math.round((d / 40) * 60) + " mins";   // assume 40km/h
+//     }
+
+//     return {
+//       id: idx,
+//       name: el.tags?.name || "Petrol Pump",
+//       lat: el.lat,
+//       lng: el.lon,
+//       fuels: ["Petrol", "Diesel", "CNG"], // mock fuel types
+//       distance,
+//       time,
+//     };
+//   });
+
+//   setStations(pumps);
+// };
+
+
+//   // return (
+//   //   <div className="min-h-screen bg-gray-50 flex flex-col">
+
+//   //     {/* Main Section */}
+//   //     <main className="flex-1 max-w-6xl mx-auto p-6 grid grid-cols-1 md:grid-cols-3 gap-8">
+//   //       {/* Left - Search & List */}
+//   //       <div className="md:col-span-1">
+//   //         {/* Search Form */}
+//   //         <form
+//   //           onSubmit={handleSearch}
+//   //           className="bg-white p-6 rounded-2xl shadow-md mb-6"
+//   //         >
+//   //           <h2 className="text-lg font-semibold mb-4">Search Stations</h2>
+//   //           <input
+//   //             type="text"
+//   //             value={location}
+//   //             onChange={(e) => setLocation(e.target.value)}
+//   //             className="w-full p-2 border rounded-lg mb-4 focus:ring-2 focus:ring-blue-500"
+//   //             placeholder="Enter city or area"
+//   //             required
+//   //           />
+//   //           <button
+//   //             type="submit"
+//   //             className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition"
+//   //           >
+//   //             Search
+//   //           </button>
+//   //         </form>
+
+//   //         {/* Stations List */}
+//   //         {/* <div className="bg-white p-6 rounded-2xl shadow-md">
+//   //           <h2 className="text-lg font-semibold mb-4">Nearby Stations</h2>
+//   //           <ul className="space-y-4">
+//   //             {stations.map((station) => (
+//   //               <li
+//   //                 key={station.id}
+//   //                 className="p-4 border rounded-lg hover:bg-gray-50 transition"
+//   //               >
+//   //                 <h3 className="font-bold text-gray-800">{station.name}</h3>
+//   //                 <p className="text-sm text-gray-600">Distance: {station.distance}</p>
+//   //                 <p className="text-sm text-gray-600">Price: {station.price}</p>
+//   //               </li>
+//   //             ))}
+//   //           </ul>
+//   //         </div> */}
+
+//   //         {/* Stations List */}
+//   //           <div className="bg-white p-6 rounded-2xl shadow-md">
+//   //             <h2 className="text-lg font-semibold mb-4">Nearby Stations</h2>
+//   //             <ul className="space-y-4">
+//   //               {stations.map((station) => (
+//   //                 <li
+//   //                   key={station.id}
+//   //                   className="p-4 border rounded-lg hover:bg-gray-50 transition"
+//   //                 >
+//   //                   <h3 className="font-bold text-gray-800">{station.name}</h3>
+//   //                   {station.distance && (
+//   //                     <p className="text-sm text-gray-600">Distance: {station.distance}</p>
+//   //                   )}
+//   //                   {station.time && (
+//   //                     <p className="text-sm text-gray-600">Travel Time: {station.time}</p>
+//   //                   )}
+//   //                   <p className="text-sm text-gray-600">
+//   //                     Fuels: {station.fuels.join(", ")}
+//   //                   </p>
+//   //                 </li>
+//   //               ))}
+//   //             </ul>
+//   //           </div>
+
+//   //       </div>
+
+//   //       {/* Right - Map */}
+//   //       <div className="md:col-span-2 bg-white p-6 rounded-2xl shadow-md flex flex-col">
+//   //         <h2 className="text-lg font-semibold mb-4">Map</h2>
+//   //         <div className="flex-1 rounded-lg overflow-hidden">
+//   //           <MapContainer
+//   //             center={userPos || [20.5937, 78.9629]} // India center fallback
+//   //             zoom={12}
+//   //             style={{ height: "500px", width: "100%" }}
+//   //           >
+//   //             <TileLayer
+//   //               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+//   //               attribution="&copy; OpenStreetMap contributors"
+//   //             />
+
+//   //             {/* User Location */}
+//   //             {userPos && (
+//   //               <Marker position={userPos} icon={blueIcon}>
+//   //                 <Popup>📍 You are here</Popup>
+//   //               </Marker>
+//   //             )}
+
+//   //             {/* Petrol Stations */}
+//   //             {stations.map((station) => (
+//   //               <Marker
+//   //                 key={station.id}
+//   //                 position={[station.lat, station.lng]}
+//   //                 icon={redIcon}
+//   //               >
+//   //                 {/* <Popup>⛽ {station.name}</Popup> */}
+//   //                 <Popup>
+//   //                   <b>{station.name}</b> <br />
+//   //                   {station.distance && <>📍 {station.distance} <br /></>}
+//   //                   {station.time && <>⏱ {station.time} <br /></>}
+//   //                   Fuels: {station.fuels.join(", ")}
+//   //                 </Popup>
+
+//   //               </Marker>
+//   //             ))}
+//   //           </MapContainer>
+//   //         </div>
+//   //       </div>
+//   //     </main>
+//   //   </div>
+//   // );
+//   return (
+//     <div className="flex h-screen bg-gray-100">
+//       {/* Left Panel */}
+//       <div className="w-80 bg-white shadow-lg p-6 flex flex-col">
+//         <h1 className="text-xl font-bold mb-6 text-blue-600">Fuel Stations</h1>
+
+//         {/* Search */}
+//         <form onSubmit={handleSearch} className="mb-6">
+//           <input
+//             type="text"
+//             value={location}
+//             onChange={(e) => setLocation(e.target.value)}
+//             className="w-full p-2 border rounded-lg mb-3 focus:ring-2 focus:ring-blue-500"
+//             placeholder="Enter city or area"
+//           />
+//           <button
+//             type="submit"
+//             className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition"
+//           >
+//             Search
+//           </button>
+//         </form>
+
+//         {/* Results */}
+//         <h2 className="text-lg font-semibold mb-3">Nearby Stations</h2>
+//         <div className="flex-1 overflow-y-auto">
+//           <ul className="space-y-3">
+//             {stations.map((station) => (
+//               <li
+//                 key={station.id}
+//                 className="p-3 border rounded-lg hover:bg-gray-50 transition"
+//               >
+//                 <h3 className="font-bold text-gray-800">{station.name}</h3>
+//                 {station.distance && (
+//                   <p className="text-sm text-gray-600">📍 {station.distance}</p>
+//                 )}
+//                 {station.time && (
+//                   <p className="text-sm text-gray-600">⏱ {station.time}</p>
+//                 )}
+//                 <p className="text-sm text-gray-600">
+//                   Fuels: {station.fuels.join(", ")}
+//                 </p>
+//               </li>
+//             ))}
+//           </ul>
+//         </div>
+//       </div>
+
+//       {/* Right Side Map */}
+//       <div className="flex-1">
+//         <MapContainer
+//           center={userPos || [20.5937, 78.9629]}
+//           zoom={12}
+//           style={{ height: "100%", width: "100%" }}
+//         >
+//           <TileLayer
+//             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+//             attribution="&copy; OpenStreetMap contributors"
+//           />
+//           {/* Center map on user position */}
+//               <RecenterOnUser userPos={userPos} />
+//           {userPos && (
+//             <Marker position={userPos} icon={blueIcon}>
+//               <Popup>📍 You are here</Popup>
+//             </Marker>
+//           )}
+//           {stations.map((station) => (
+//             <Marker
+//               key={station.id}
+//               position={[station.lat, station.lng]}
+//               icon={redIcon}
+//             >
+//               <Popup>
+//                 <b>{station.name}</b> <br />
+//                 {station.distance && <>📍 {station.distance} <br /></>}
+//                 {station.time && <>⏱ {station.time} <br /></>}
+//                 Fuels: {station.fuels.join(", ")}
+//               </Popup>
+//             </Marker>
+//           ))}
+//         </MapContainer>
+//       </div>
+//     </div>
+//   );
+// }

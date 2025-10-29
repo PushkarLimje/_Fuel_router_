@@ -31,12 +31,27 @@ app.use("/api/v1/routes", routeRouter);
 app.use("/api/v1/reports", reportRouter);
 
 app.use((err, req, res, next) => {
-  console.error("🔥 Error caught:", err);
+  console.error("========================================");
+  console.error("🔥 ERROR CAUGHT:");
+  console.error("Message:", err.message);
+  console.error("Status Code:", err.statusCode);
+  console.error("Stack:", err.stack);
+  console.error("Full Error:", err);
+  console.error("========================================");
 
   res.status(err.statusCode || 500).json({
     success: false,
     message: err.message || "Something went wrong",
   });
 });
+
+// app.use((err, req, res, next) => {
+//   console.error("🔥 Error caught:", err);
+
+//   res.status(err.statusCode || 500).json({
+//     success: false,
+//     message: err.message || "Something went wrong",
+//   });
+// });
 
 export { app };
