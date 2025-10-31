@@ -49,6 +49,26 @@ const userSchema = new mongoose.Schema(
     type: String, 
     default: "Pune" // Your location from prompt
   },
+  // ⭐ ADD THESE NEW FIELDS:
+    vehicle: {
+      number: { 
+        type: String, default: null 
+      },      // e.g., "MH12AB1234"
+      fuelType: { 
+        type: String, 
+        enum: ['Petrol', 'Diesel', 'CNG', 'Electric'], 
+        default: 'Petrol' 
+      },
+
+      avgMileage: { 
+        type: Number, 
+        default: 15 
+      } // km/L
+    },
+    phone: { 
+      type: String, default: null 
+    }
+    
   },
   { timestamps: true }
 );

@@ -38,7 +38,8 @@ import {
   getUserReports, 
   getReportById,
   deleteReport,
-  downloadReport
+  downloadReport,
+  fixExistingReports
 } from "../controllers/report.controller.js";
 import { verifyJWT } from "../middleware/auth.middleware.js";
 
@@ -61,5 +62,8 @@ router.delete("/:id", deleteReport);
 
 // Get single report (MUST be last)
 router.get("/:id", getReportById);
+
+// Add this route (temporary, can remove after fixing)
+router.post("/fix-existing", fixExistingReports);
 
 export default router;

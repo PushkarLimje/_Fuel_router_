@@ -237,10 +237,16 @@ const changeCurrentPassword = asyncHandler(async(req, res) => {
   ))
 })
 
+// const getCurrentUser = asyncHandler(async(req, res) => {
+//   return res
+//   .status(200)
+//   .json(200, req.user,"current user fetched successfully")
+// })
+
 const getCurrentUser = asyncHandler(async(req, res) => {
   return res
-  .status(200)
-  .json(200, req.user,"current user fetched successfully")
+    .status(200)
+    .json(new ApiResponse(200, req.user, "Current user fetched successfully"))  // ✅ Correct
 })
 
 const updateAccountDetails = asyncHandler(async(req, res) => {
@@ -275,7 +281,8 @@ const updateUserAvatar = asyncHandler(async(req, res)=> {
   if(!avatar.url) throw new ApiError(400, "Error while Uploading avatar -- URL not found ❌");
 
   const user = await User.findByIdAndUpdate(
-    req.file?._id,
+    // req.file?._id,          
+    req.user?._id,          
     {
       $set: {
         avatar: avatar.url
@@ -290,6 +297,28 @@ const updateUserAvatar = asyncHandler(async(req, res)=> {
 
 })
  
+const deleteAccount = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+
+  // Delete user
+  await User.findByIdAndDelete(userId);
+
+  // Optional: Delete related data (trips, etc.)
+  // await Trip.deleteMany({ user: userId });
+
+  // Clear cookies
+  const options = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax"
+  };
+
+  return res
+    .status(200)
+    .clearCookie("accessToken", options)
+    .clearCookie("refreshToken", options)
+    .json(new ApiResponse(200, {}, "Account deleted successfully"));
+});
 
 export {
   // generateAccessAndRefreshToken,
@@ -302,7 +331,8 @@ export {
   changeCurrentPassword,
   getCurrentUser,
   updateAccountDetails,
-  updateUserAvatar
+  updateUserAvatar,
+  deleteAccount 
 
 };
 

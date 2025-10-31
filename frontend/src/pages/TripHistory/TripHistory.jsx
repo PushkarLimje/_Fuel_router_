@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from "react";
 import api from "../../api/axiosConfig";
 import { Search, X, FileText, Download, Calendar, MapPin, Fuel, Route as RouteIcon, RefreshCw, TestTube, Bug, Loader2, Plus } from "lucide-react";
+import GenerateReportModal from "../../Components/GenerateReportModal.jsx";
 
 export default function TripHistory() {
   const [search, setSearch] = useState("");
@@ -9,6 +10,8 @@ export default function TripHistory() {
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [selectedRouteForReport, setSelectedRouteForReport] = useState(null);
 
   useEffect(() => {
     fetchData();
@@ -71,25 +74,29 @@ export default function TripHistory() {
   };
 
   // Generate report for a route
-  const handleGenerateReport = async (routeId) => {
-    const fuelPrice = prompt("Enter fuel price per liter (₹):", "100");
-    if (!fuelPrice) return;
-
-    setGenerating(routeId);
-    try {
-      const response = await api.post(`/reports/generate/${routeId}`, {
-        fuelPricePerLiter: parseFloat(fuelPrice)
-      });
-      
-      alert("Report generated successfully!");
-      fetchData(); // Refresh data
-    } catch (error) {
-      console.error("Error generating report:", error);
-      alert(error.response?.data?.message || "Failed to generate report");
-    } finally {
-      setGenerating(null);
-    }
+  // Around line 60-70, REPLACE the handleGenerateReport function:
+  const handleGenerateReport = async (route) => {
+  setSelectedRouteForReport(route);
+  setModalOpen(true);
   };
+
+  const handleModalSubmit = async (requestData) => {
+  setGenerating(selectedRouteForReport._id);
+  setModalOpen(false);
+  
+  try {
+    console.log("📊 Generating report with data:", requestData);
+    const response = await api.post(`/reports/generate/${selectedRouteForReport._id}`, requestData);
+    alert("Report generated successfully!");
+    fetchData();
+  } catch (error) {
+    console.error("Error generating report:", error);
+    alert(error.response?.data?.message || "Failed to generate report");
+  } finally {
+    setGenerating(null);
+    setSelectedRouteForReport(null);
+  }
+};
 
   // Download report - Simple redirect through backend
   const handleDownloadReport = async (reportId) => {
@@ -364,7 +371,7 @@ export default function TripHistory() {
                             </button>
                           ) : (
                             <button
-                              onClick={() => handleGenerateReport(route._id)}
+                              onClick={() => handleGenerateReport(route)}
                               disabled={generating === route._id}
                               className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-4 py-2 rounded-lg hover:from-blue-600 hover:to-indigo-700 disabled:from-gray-400 disabled:to-gray-500 text-sm font-medium flex items-center gap-2 shadow-md hover:shadow-lg transition-all disabled:cursor-not-allowed"
                             >
@@ -447,6 +454,16 @@ export default function TripHistory() {
           </div>
         )}
       </main>
+      {/* Add before the closing </div> of main container */}
+            <GenerateReportModal
+              isOpen={modalOpen}
+              onClose={() => {
+                setModalOpen(false);
+                setSelectedRouteForReport(null);
+              }}
+              onSubmit={handleModalSubmit}
+              route={selectedRouteForReport}
+            />
     </div>
   );
 }

@@ -77,6 +77,7 @@ const uploadPDFOnCloudinary = async (localFilePath) => {
     const response = await cloudinary.uploader.upload(localFilePath, {
       resource_type: "auto",        // Use 'auto' instead of 'raw'
       folder: "reports",
+      // format: "pdf",
       public_id: `report_${Date.now()}`,
       access_mode: "public",        // Ensure public access
       type: "upload"                // Standard upload type
