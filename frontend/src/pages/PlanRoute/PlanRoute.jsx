@@ -7,7 +7,7 @@ import "leaflet-routing-machine";
 import "leaflet-routing-machine/dist/leaflet-routing-machine.css";
 import api from "../../api/axiosConfig";
 import { MapPin, Navigation, Fuel, Gauge, Clock, Route, Save, AlertTriangle, CheckCircle, Zap, Battery, Car } from "lucide-react";
-
+import { useToast } from '../../Components/Notifications';
 const TOMTOM_API_KEY = import.meta.env.VITE_TOMTOM_KEY;
 
 const destinationIcon = new L.Icon({
@@ -102,7 +102,7 @@ export default function PlanRoute() {
   const [saving, setSaving] = useState(false);
   const [calculating, setCalculating] = useState(false);
   const [center] = useState([20.5937, 78.9629]);
-
+  const { showToast, ToastContainer } = useToast();
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
@@ -361,7 +361,7 @@ export default function PlanRoute() {
       const dest = await getCoordinates(formData.destination);
 
       if (!start || !dest) {
-        alert("Could not find coordinates for the entered locations");
+        showToast("Could not find coordinates for the entered locations", 'error');
         setCalculating(false);
         return;
       }
@@ -478,10 +478,10 @@ export default function PlanRoute() {
         setSelectedRoute(routes[0]);
       }
 
-      alert(`Found ${routes.length} route option(s)! Select your preferred route.`);
+      showToast(`Found ${routes.length} route option(s)! Select your preferred route.`, 'success');
     } catch (error) {
       console.error("Error calculating route:", error);
-      alert("Failed to calculate route. Please try again.");
+      showToast("Failed to calculate route. Please try again.", 'error');
     } finally {
       setCalculating(false);
     }
@@ -490,7 +490,7 @@ export default function PlanRoute() {
   // Save route to database
   const handleSaveRoute = async () => {
     if (!selectedRoute) {
-      alert("Please select a route first!");
+      showToast("Please select a route first!", 'warning');
       return;
     }
 
@@ -511,7 +511,7 @@ export default function PlanRoute() {
 
       const response = await api.post("/routes", routeData);
       console.log("Route saved:", response.data);
-      alert("Route saved successfully to database!");
+      showToast("Route saved successfully to database!", 'success');
 
       // Reset form after saving
       setFormData({
@@ -529,7 +529,7 @@ export default function PlanRoute() {
       setSelectedRoute(null);
     } catch (error) {
       console.error("Error saving route:", error);
-      alert(error.response?.data?.message || "Failed to save route");
+      showToast(error.response?.data?.message || "Failed to save route", 'error');
     } finally {
       setSaving(false);
     }
@@ -968,6 +968,7 @@ export default function PlanRoute() {
           )}
         </MapContainer>
       </div>
+      <ToastContainer />
     </div>
   );
 }

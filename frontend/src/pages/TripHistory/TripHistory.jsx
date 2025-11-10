@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react";
 import api from "../../api/axiosConfig";
 import { Search, X, FileText, Download, Calendar, MapPin, Fuel, Route as RouteIcon, RefreshCw, TestTube, Bug, Loader2, Plus } from "lucide-react";
 import GenerateReportModal from "../../Components/GenerateReportModal.jsx";
-
+import { useToast } from '../../Components/Notifications';
 export default function TripHistory() {
   const [search, setSearch] = useState("");
   const [routes, setRoutes] = useState([]);
@@ -12,7 +12,7 @@ export default function TripHistory() {
   const [generating, setGenerating] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedRouteForReport, setSelectedRouteForReport] = useState(null);
-
+  const { showToast, ToastContainer } = useToast();
   useEffect(() => {
     fetchData();
   }, []);
@@ -35,11 +35,12 @@ export default function TripHistory() {
       console.log("Creating test route:", testRoute);
       const response = await api.post('/routes', testRoute);
       console.log("Test route created:", response.data);
-      alert("Test route created! Refreshing...");
+      //! alert("Test route created! Refreshing...");
+      showToast("Test route created! Refreshing...", 'success');
       fetchData();
     } catch (error) {
       console.error("Error creating test route:", error);
-      alert(error.response?.data?.message || "Failed to create test route");
+      showToast(error.response?.data?.message || "Failed to create test route");
     }
   };
 
@@ -87,11 +88,12 @@ export default function TripHistory() {
   try {
     console.log("📊 Generating report with data:", requestData);
     const response = await api.post(`/reports/generate/${selectedRouteForReport._id}`, requestData);
-    alert("Report generated successfully!");
+    //! alert("Report generated successfully!");
+    showToast("Report generated successfully!", 'success');
     fetchData();
   } catch (error) {
     console.error("Error generating report:", error);
-    alert(error.response?.data?.message || "Failed to generate report");
+    showToast(error.response?.data?.message || "Failed to generate report");
   } finally {
     setGenerating(null);
     setSelectedRouteForReport(null);
@@ -168,7 +170,8 @@ export default function TripHistory() {
 
     } catch (error) {
       console.error("❌ Download error:", error);
-      alert(`Failed to download report: ${error.message}`);
+      // alert(`Failed to download report: ${error.message}`);
+      showToast(`Failed to download report: ${error.message}`, 'error');
     }
   };
   
@@ -454,6 +457,7 @@ export default function TripHistory() {
           </div>
         )}
       </main>
+      <ToastContainer />
       {/* Add before the closing </div> of main container */}
             <GenerateReportModal
               isOpen={modalOpen}

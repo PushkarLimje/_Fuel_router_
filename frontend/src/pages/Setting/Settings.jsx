@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Camera, Trash2, AlertTriangle, Save, X } from "lucide-react";
-
+import { useToast } from '../../Components/Notifications'; // Adjust path as needed
 export default function Settings() {
   const [userData, setUserData] = useState(null);
   const [formData, setFormData] = useState({
@@ -18,7 +18,7 @@ export default function Settings() {
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [avatarFile, setAvatarFile] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
-
+  const { showToast, ToastContainer } = useToast();
   // API base URL - update this to your backend URL
   const API_BASE_URL = "http://localhost:8000/api/v1";
 
@@ -43,7 +43,8 @@ export default function Settings() {
       
       if (!token) {
         console.error("No auth token found in localStorage");
-        alert("Please login to access settings. No authentication token found.");
+        // alert("Please login to access settings. No authentication token found.");
+        showToast("Please login to access settings. No authentication token found.", 'error');
         setLoading(false);
         return;
       }
@@ -86,7 +87,8 @@ export default function Settings() {
 
     } catch (error) {
       console.error('Load user error:', error);
-      alert(`Failed to load user data: ${error.message}\n\nPlease check:\n1. Backend server is running\n2. You are logged in\n3. API URL is correct`);
+      //!alert(`Failed to load user data: ${error.message}\n\nPlease check:\n1. Backend server is running\n2. You are logged in\n3. API URL is correct`);
+      showToast(`Failed to load user data: ${error.message}`, 'error');
     } finally {
       setLoading(false);
     }
@@ -104,12 +106,14 @@ export default function Settings() {
     const file = e.target.files[0];
     if (file) {
       if (file.size > 5 * 1024 * 1024) {
-        alert("File size should be less than 5MB");
+        //! alert("File size should be less than 5MB");
+        showToast("File size should be less than 5MB", 'warning');
         return;
       }
 
       if (!file.type.startsWith('image/')) {
-        alert("Please select an image file");
+        //! alert("Please select an image file");
+        showToast("Please select an image file", 'warning');
         return;
       }
 
@@ -123,7 +127,8 @@ export default function Settings() {
     try {
       const token = getAuthToken();
       if (!token) {
-        alert("Please login to update profile");
+        //! alert("Please login to update profile");
+        showToast("Please login to update profile", 'error');
         return;
       }
 
@@ -169,7 +174,8 @@ export default function Settings() {
       }
 
       const result = await response.json();
-      alert("Profile updated successfully!");
+      //! alert("Profile updated successfully!");
+      showToast("Profile updated successfully!", 'success');
       
       // Reload user data
       await loadUserData();
@@ -178,7 +184,8 @@ export default function Settings() {
       
     } catch (error) {
       console.error('Update error:', error);
-      alert("Failed to update profile. Please try again.");
+      //! alert("Failed to update profile. Please try again.");
+      showToast("Failed to update profile. Please try again.", 'error');
     } finally {
       setSaving(false);
     }
@@ -186,14 +193,16 @@ export default function Settings() {
 
   const handleDeleteAccount = async () => {
     if (deleteConfirmText !== "DELETE") {
-      alert("Please type DELETE to confirm account deletion");
+      // alert("Please type DELETE to confirm account deletion");
+      showToast("Please type DELETE to confirm account deletion", 'warning');
       return;
     }
 
     try {
       const token = getAuthToken();
       if (!token) {
-        alert("Please login to delete account");
+        //! alert("Please login to delete account");
+        showToast("Please login to delete account", 'error');
         return;
       }
 
@@ -209,7 +218,8 @@ export default function Settings() {
         throw new Error('Failed to delete account');
       }
 
-      alert("Account deleted successfully!");
+      // ! alert("Account deleted successfully!");
+      showToast("Account deleted successfully!", 'success');
       
       // Clear all tokens
       localStorage.removeItem('accessToken');
@@ -226,7 +236,8 @@ export default function Settings() {
       
     } catch (error) {
       console.error('Delete error:', error);
-      alert("Failed to delete account. Please try again.");
+      //! alert("Failed to delete account. Please try again.");
+      showToast("Failed to delete account. Please try again.", 'error');
     }
   };
 
@@ -562,6 +573,7 @@ export default function Settings() {
           </div>
         </div>
       )}
+      <ToastContainer /> 
     </div>
   );
 }

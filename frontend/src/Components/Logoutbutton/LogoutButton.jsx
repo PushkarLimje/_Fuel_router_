@@ -12,7 +12,7 @@ function LogoutButton() {
 
       // Redirect user to login page
       alert("Logged out successfully!");
-      navigate("/login");
+      navigate("/");
     } catch (error) {
       console.error("Logout failed",error.response || error);
       alert(error.response?.data?.message || "Logout failed");

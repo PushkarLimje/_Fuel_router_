@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react";
 import "leaflet/dist/leaflet.css";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
-
+import { useToast } from '../../Components/Notifications';
 // Custom blue icon for user
 const blueIcon = new L.Icon({
   iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png",
@@ -41,7 +41,7 @@ export default function FuelStations() {
   const [userPos, setUserPos] = useState(null);
   const [stations, setStations] = useState([]);
   const [searching, setSearching] = useState(false);
-
+  const { showToast, ToastContainer } = useToast();
   // Get user current location
   useEffect(() => {
     if (navigator.geolocation) {
@@ -49,7 +49,7 @@ export default function FuelStations() {
         (pos) => {
           setUserPos([pos.coords.latitude, pos.coords.longitude]);
         },
-        () => alert("Could not get your location")
+        () => showToast("Could not get your location", 'error')
       );
     }
   }, []);
@@ -84,7 +84,7 @@ export default function FuelStations() {
       const cityData = await cityRes.json();
 
       if (cityData.length === 0) {
-        alert("City not found");
+        showToast("Failed to search stations", 'error');
         setSearching(false);
         return;
       }
@@ -336,6 +336,7 @@ export default function FuelStations() {
           </div>
         )}
       </div>
+      <ToastContainer />
     </div>
   );
 }
