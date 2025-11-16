@@ -250,6 +250,7 @@
 // src/pages/Dashboard.jsx
 import React, { useState, useEffect } from "react";
 import api from "../../api/axiosConfig";
+import { useToastContext } from "../../Components/ToastContext.jsx"; // Same folder 
 
 export default function Dashboard() {
   const [dashboardData, setDashboardData] = useState({
@@ -263,7 +264,7 @@ export default function Dashboard() {
   const [error, setError] = useState("");
   const [locationLoading, setLocationLoading] = useState(false);
   const [userLocation, setUserLocation] = useState(null);
-
+  const { showToast } = useToastContext();
   useEffect(() => {
     const getUserLocation = () => {
       setLocationLoading(true);
@@ -313,6 +314,7 @@ export default function Dashboard() {
         console.error("❌ Error fetching dashboard:", err);
         console.error("❌ Error response:", err.response);
         setError(err.response?.data?.message || "Failed to load dashboard");
+        showToast(err.response?.data?.message || "Failed to load dashboard","warning")
       } finally {
         setLoading(false);
       }

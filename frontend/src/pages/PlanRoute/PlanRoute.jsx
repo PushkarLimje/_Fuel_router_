@@ -8,6 +8,8 @@ import "leaflet-routing-machine/dist/leaflet-routing-machine.css";
 import api from "../../api/axiosConfig";
 import { MapPin, Navigation, Fuel, Gauge, Clock, Route, Save, AlertTriangle, CheckCircle, Zap, Battery, Car } from "lucide-react";
 import { useToast } from '../../Components/Notifications';
+import { useToastContext } from "../../Components/ToastContext.jsx"; // Same folder 
+
 const TOMTOM_API_KEY = import.meta.env.VITE_TOMTOM_KEY;
 
 const destinationIcon = new L.Icon({
@@ -102,7 +104,8 @@ export default function PlanRoute() {
   const [saving, setSaving] = useState(false);
   const [calculating, setCalculating] = useState(false);
   const [center] = useState([20.5937, 78.9629]);
-  const { showToast, ToastContainer } = useToast();
+  //const { showToast, ToastContainer } = useToast();
+  const { showToast } = useToastContext();
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
@@ -968,7 +971,7 @@ export default function PlanRoute() {
           )}
         </MapContainer>
       </div>
-      <ToastContainer />
+      {/* <ToastContainer /> */}
     </div>
   );
 }

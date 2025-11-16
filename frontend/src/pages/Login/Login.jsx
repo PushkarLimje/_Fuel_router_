@@ -3,16 +3,18 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { useToast, SuccessModal, ErrorModal } from '../../Components/Notifications';
+import { useToastContext } from "../../Components/ToastContext.jsx"; // Same folder 
+
 export default function Login() {
   const navigate = useNavigate();
-  const { showToast, ToastContainer } = useToast();
+  //const { showToast, ToastContainer } = useToast();
   const [formData, setFormData] = useState({
     email: "",
     password: "",
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
+  const { showToast } = useToastContext();
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
@@ -157,7 +159,7 @@ export default function Login() {
             )}
           </button>
         </form>
-            <ToastContainer />
+            {/* <ToastContainer /> */}
         {/* Divider */}
         <div className="flex items-center gap-4 my-6">
           <div className="flex-1 h-px bg-gray-300"></div>

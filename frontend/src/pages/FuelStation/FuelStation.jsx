@@ -4,6 +4,8 @@ import "leaflet/dist/leaflet.css";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 import { useToast } from '../../Components/Notifications';
+import { useToastContext } from "../../Components/ToastContext.jsx"; // Same folder 
+
 // Custom blue icon for user
 const blueIcon = new L.Icon({
   iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png",

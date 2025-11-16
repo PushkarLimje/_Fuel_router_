@@ -12,6 +12,7 @@
   "dependencies": {
     "@fortawesome/fontawesome-free": "^7.0.1",
     "@mapbox/polyline": "^1.2.1",
+    "@react-google-maps/api": "^2.20.7",
     "axios": "^1.12.2",
     "leaflet": "^1.9.4",
     "leaflet-routing-machine": "^3.2.12",

@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { Camera, Trash2, AlertTriangle, Save, X } from "lucide-react";
 import { useToast } from '../../Components/Notifications'; // Adjust path as needed
+import { useToastContext } from "../../Components/ToastContext.jsx"; // Same folder 
+
 export default function Settings() {
   const [userData, setUserData] = useState(null);
   const [formData, setFormData] = useState({
@@ -11,14 +13,14 @@ export default function Settings() {
     avatar: "",
     city: "",
   });
-  
+  const { showToast } = useToastContext();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [avatarFile, setAvatarFile] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
-  const { showToast, ToastContainer } = useToast();
+  //const { showToast, ToastContainer } = useToast();
   // API base URL - update this to your backend URL
   const API_BASE_URL = "http://localhost:8000/api/v1";
 
@@ -573,7 +575,7 @@ export default function Settings() {
           </div>
         </div>
       )}
-      <ToastContainer /> 
+      {/* <ToastContainer />  */}
     </div>
   );
 }

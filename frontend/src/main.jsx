@@ -7,7 +7,7 @@ import { createBrowserRouter, createRoutesFromElements , Route, RouterProvider }
 import { HomeLayout,DashboardLayout } from './Layout/index.js'
 import {About,Contacts,Dashboard,FuelStations,Home,Login,PlanRoute,Register,Settings,Terms,TripHistory, PrivacyPolicy} from  './pages/index.js'
 import ProtectedRoute from './Components/ProtectedRoute.jsx'  // ✅ ADD THIS
-
+import { ToastProvider } from './Components/ToastContext.jsx'
 const router = createBrowserRouter(
   createRoutesFromElements(
     <>
@@ -38,7 +38,10 @@ const router = createBrowserRouter(
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <RouterProvider router={router} />
+    {/* <RouterProvider router={router} /> */}
+    <ToastProvider> {/* ✅ WRAP WITH ToastProvider */}
+      <RouterProvider router={router} />
+    </ToastProvider>
   </StrictMode>,
 )
 

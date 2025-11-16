@@ -2,10 +2,13 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from '../../Components/Notifications';
+import { useToastContext } from "../../Components/ToastContext.jsx"; // Same folder 
+
 export default function Register() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-  const { showToast, ToastContainer } = useToast();
+  //const { showToast, ToastContainer } = useToast();
+  const { showToast } = useToastContext();
   const [formData, setFormData] = useState({
     username: "",
     firstName: "",
@@ -261,7 +264,7 @@ export default function Register() {
           </a>
         </p>
       </div>
-      <ToastContainer />
+      {/* <ToastContainer /> */}
       <style jsx>{`
         @keyframes blob {
           0% { transform: translate(0px, 0px) scale(1); }
