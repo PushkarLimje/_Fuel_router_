@@ -1,0 +1,1 @@
+export const API_URL = "https://fuel-router-csj6.onrender.com";

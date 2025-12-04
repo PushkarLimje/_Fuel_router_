@@ -52,3 +52,8 @@
 .animate-bounce-in { animation: bounce-in 0.5s ease-out; }
 .animate-shake { animation: shake 0.5s ease-out; }
 .animate-progress { animation: progress linear; }
+
+/* Hide old leaflet routing directions panel */
+.leaflet-routing-container {
+  display: none !important;
+}

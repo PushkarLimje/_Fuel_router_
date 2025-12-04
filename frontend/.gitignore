@@ -25,6 +25,9 @@ dist-ssr
 *.sw?
 .env
 .gitignore
+.config.js
 
 # Ignore node modules
 node_modules/
+.env
+.gitignore

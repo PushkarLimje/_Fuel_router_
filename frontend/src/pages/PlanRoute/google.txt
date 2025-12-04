@@ -1,0 +1,652 @@
+// ==========================================================
+// PLANROUTE.JSX — FULL GOOGLE MAPS VERSION (MERGED PART A)
+// ==========================================================
+
+import React, { useState, useEffect, useRef } from "react";
+
+// Google Maps SDK
+import {
+  GoogleMap,
+  LoadScript,
+  Marker,
+  Polyline,
+  DirectionsRenderer,
+  Autocomplete,
+} from "@react-google-maps/api";
+
+import api from "../../api/axiosConfig";
+import {
+  MapPin,
+  Navigation,
+  Fuel,
+  Gauge,
+  Clock,
+  Route,
+  Save,
+  AlertTriangle,
+  CheckCircle,
+  Zap,
+  Battery,
+  Car,
+} from "lucide-react";
+
+import { useToastContext } from "../../Components/ToastContext.jsx";
+import RouteDirectionsPanel from "../../Components/RouteDirectionsPanel";
+
+// Environment Key
+const GOOGLE_KEY = import.meta.env.VITE_GOOGLE_MAPS_KEY;
+
+// Map container style
+const containerStyle = {
+  width: "100%",
+  height: "100%",
+};
+
+// Default India center
+const defaultCenter = { lat: 20.5937, lng: 78.9629 };
+
+// Marker Icons
+const startIcon = "https://maps.google.com/mapfiles/ms/icons/blue-dot.png";
+const destinationIcon = "https://maps.google.com/mapfiles/ms/icons/red-dot.png";
+const fuelStationIcon = "https://maps.google.com/mapfiles/ms/icons/yellow-dot.png";
+const chargingStationIcon = "https://maps.google.com/mapfiles/ms/icons/green-dot.png";
+
+// ==========================================================
+// MAIN COMPONENT
+// ==========================================================
+
+export default function PlanRoute() {
+  const { showToast } = useToastContext();
+
+  // Refs
+  const mapRef = useRef(null);
+  const startAutoRef = useRef(null);
+  const destAutoRef = useRef(null);
+
+  // Inputs
+  const [vehicleType, setVehicleType] = useState("petrol");
+  const [formData, setFormData] = useState({
+    start: "",
+    destination: "",
+    mileage: "",
+    fuel: "",
+    batteryCapacity: "",
+    currentCharge: "",
+    rangePerKwh: "",
+  });
+
+  // Coordinates
+  const [startCoords, setStartCoords] = useState(null);
+  const [destCoords, setDestCoords] = useState(null);
+
+  // Routes + Directions
+  const [routes, setRoutes] = useState([]);
+  const [routeOptions, setRouteOptions] = useState([]);
+  const [selectedRoute, setSelectedRoute] = useState(null);
+  const [directions, setDirections] = useState(null);
+
+  // UI state
+  const [calculating, setCalculating] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [fetchingLocation, setFetchingLocation] = useState(false);
+
+  // Navigation live
+  const [isNavigating, setIsNavigating] = useState(false);
+  const [currentLocation, setCurrentLocation] = useState(null);
+  const [nextTurn, setNextTurn] = useState(null);
+  const [distanceToNextTurn, setDistanceToNextTurn] = useState(null);
+  const [showDirections, setShowDirections] = useState(false);
+
+  const [useCurrentLocation, setUseCurrentLocation] = useState(false);
+  const [googleReady, setGoogleReady] = useState(false);
+
+  // ---------------------------------------
+  // MAP ON LOAD
+  // ---------------------------------------
+  const onLoadMap = (map) => {
+    mapRef.current = map;
+  };
+
+  //----------------------------------------
+  // HANDLE TEXT INPUT CHANGE
+  //----------------------------------------
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  //----------------------------------------
+  // REVERSE GEOCODE + SET START FROM GPS
+  //----------------------------------------
+  const getCurrentLocation = async () => {
+    setFetchingLocation(true);
+
+    try {
+      const pos = await new Promise((resolve, reject) =>
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 10000,
+        })
+      );
+
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+
+      setStartCoords({ lat, lng });
+      setUseCurrentLocation(true);
+
+      const geoRes = await fetch(
+        `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${GOOGLE_KEY}`
+      );
+      const geoData = await geoRes.json();
+
+      const addr = geoData.results?.[0]?.formatted_address || `${lat}, ${lng}`;
+
+      setFormData({ ...formData, start: addr });
+
+      showToast("Current location detected!", "success");
+    } catch (err) {
+      console.error(err);
+      showToast("Unable to fetch location.", "error");
+    }
+
+    setFetchingLocation(false);
+  };
+
+  // Fetch GPS automatically on load
+  useEffect(() => {
+    getCurrentLocation();
+  }, []);
+
+
+// ===============================
+// PART B — LEFT UI PANEL
+// ===============================
+
+return (
+  <div className="flex h-[90vh] bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+
+    {/* LEFT PANEL */}
+    <div className="w-1/4 bg-white/80 backdrop-blur-sm shadow-2xl p-6 border-r border-indigo-100 overflow-y-auto">
+
+      {/* HEADER */}
+      <div className="mb-6">
+        <div className="flex items-center gap-3 mb-2">
+          <div className="p-2 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg">
+            <Navigation className="w-6 h-6 text-white" />
+          </div>
+          <h2 className="text-2xl font-bold bg-gradient-to-r 
+          from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+            Plan Your Journey
+          </h2>
+        </div>
+        <p className="text-gray-500 text-sm ml-14">
+          Enter your trip details below
+        </p>
+      </div>
+
+      {/* VEHICLE TYPE SELECTOR */}
+      <div className="mb-5">
+        <label className="block text-gray-700 mb-3 font-medium">
+          Vehicle Type
+        </label>
+
+        <div className="grid grid-cols-2 gap-3">
+
+          {/* PETROL BUTTON */}
+          <button
+            type="button"
+            onClick={() => setVehicleType("petrol")}
+            className={`
+              p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2
+              ${vehicleType === "petrol"
+                ? "border-blue-500 bg-blue-50 shadow-md"
+                : "border-gray-200 bg-white hover:border-blue-300"
+              }`}
+          >
+            <Fuel className={`w-6 h-6 ${vehicleType === "petrol" ? "text-blue-600" : "text-gray-400"}`} />
+            <span className={`font-semibold text-sm ${vehicleType === "petrol" ? "text-blue-700" : "text-gray-600"}`}>
+              Petrol/Diesel
+            </span>
+          </button>
+
+          {/* EV BUTTON */}
+          <button
+            type="button"
+            onClick={() => setVehicleType("ev")}
+            className={`
+              p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2
+              ${vehicleType === "ev"
+                ? "border-green-500 bg-green-50 shadow-md"
+                : "border-gray-200 bg-white hover:border-green-300"
+              }`}
+          >
+            <Zap className={`w-6 h-6 ${vehicleType === "ev" ? "text-green-600" : "text-gray-400"}`} />
+            <span className={`font-semibold text-sm ${vehicleType === "ev" ? "text-green-700" : "text-gray-600"}`}>
+              Electric (EV)
+            </span>
+          </button>
+
+        </div>
+      </div>
+
+      {/* START LOCATION (GOOGLE AUTOCOMPLETE) */}
+      <div className="group mb-5">
+        <label className="flex items-center gap-2 text-gray-700 mb-2 font-medium">
+          <MapPin className="w-4 h-4 text-green-500" />
+          Start Location
+        </label>
+
+        <div className="flex gap-2">
+          <Autocomplete
+            onLoad={(auto) => (startAutoRef.current = auto)}
+            onPlaceChanged={() => {
+              const place = startAutoRef.current.getPlace();
+              if (place?.geometry?.location) {
+                const lat = place.geometry.location.lat();
+                const lng = place.geometry.location.lng();
+                setStartCoords({ lat, lng });
+                setFormData({ ...formData, start: place.formatted_address });
+              }
+            }}
+          >
+            <input
+              type="text"
+              name="start"
+              value={formData.start}
+              onChange={handleChange}
+              placeholder="Enter starting point"
+              className="flex-1 p-3 border-2 border-gray-200 rounded-xl focus:ring-2 
+              focus:ring-blue-500 bg-white/50"
+            />
+          </Autocomplete>
+
+          {/* GPS BUTTON */}
+          <button
+            type="button"
+            onClick={getCurrentLocation}
+            disabled={fetchingLocation}
+            className="px-4 py-3 bg-green-500 hover:bg-green-600 text-white 
+            rounded-xl disabled:cursor-not-allowed"
+            title="Use my location"
+          >
+            <Navigation className={`w-5 h-5 ${fetchingLocation ? "animate-spin" : ""}`} />
+          </button>
+        </div>
+
+        {useCurrentLocation && (
+          <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
+            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+            Using your current location
+          </p>
+        )}
+      </div>
+
+      {/* DESTINATION AUTOCOMPLETE */}
+      <div className="group mb-5">
+        <label className="flex items-center gap-2 text-gray-700 mb-2 font-medium">
+          <MapPin className="w-4 h-4 text-red-500" />
+          Destination
+        </label>
+
+        <Autocomplete
+          onLoad={(auto) => (destAutoRef.current = auto)}
+          onPlaceChanged={() => {
+            const place = destAutoRef.current.getPlace();
+            if (place?.geometry?.location) {
+              const lat = place.geometry.location.lat();
+              const lng = place.geometry.location.lng();
+              setDestCoords({ lat, lng });
+              setFormData({ ...formData, destination: place.formatted_address });
+            }
+          }}
+        >
+          <input
+            type="text"
+            name="destination"
+            value={formData.destination}
+            onChange={handleChange}
+            placeholder="Enter destination"
+            className="w-full p-3 border-2 border-gray-200 rounded-xl 
+            focus:ring-2 focus:ring-red-500 bg-white/50"
+          />
+        </Autocomplete>
+      </div>
+
+      {/* PETROL INPUTS */}
+      {vehicleType === "petrol" && (
+        <>
+          {/* Mileage */}
+          <div className="group mb-4">
+            <label className="flex items-center gap-2 text-gray-700 mb-2 font-medium">
+              <Gauge className="w-4 h-4 text-blue-500" />
+              Mileage (km/l)
+            </label>
+            <input
+              type="number"
+              name="mileage"
+              value={formData.mileage}
+              onChange={handleChange}
+              placeholder="e.g. 15"
+              className="w-full p-3 border-2 border-gray-200 rounded-xl"
+            />
+          </div>
+
+          {/* Fuel */}
+          <div className="group">
+            <label className="flex items-center gap-2 text-gray-700 mb-2 font-medium">
+              <Fuel className="w-4 h-4 text-amber-500" />
+              Fuel Available (litres)
+            </label>
+            <input
+              type="number"
+              name="fuel"
+              value={formData.fuel}
+              onChange={handleChange}
+              placeholder="e.g. 10"
+              className="w-full p-3 border-2 border-gray-200 rounded-xl"
+            />
+          </div>
+        </>
+      )}
+
+      {/* EV INPUTS */}
+      {vehicleType === "ev" && (
+        <>
+          {/* Battery */}
+          <div className="group mb-4">
+            <label className="flex items-center gap-2 text-gray-700 mb-2 font-medium">
+              <Battery className="w-4 h-4 text-green-500" />
+              Battery Capacity (kWh)
+            </label>
+            <input
+              type="number"
+              name="batteryCapacity"
+              value={formData.batteryCapacity}
+              onChange={handleChange}
+              placeholder="e.g. 50"
+              className="w-full p-3 border-2 border-gray-200 rounded-xl"
+            />
+          </div>
+
+          {/* Current Charge */}
+          <div className="group mb-4">
+            <label className="flex items-center gap-2 text-gray-700 mb-2 font-medium">
+              <Zap className="w-4 h-4 text-yellow-500" />
+              Current Charge (kWh)
+            </label>
+            <input
+              type="number"
+              name="currentCharge"
+              value={formData.currentCharge}
+              onChange={handleChange}
+              placeholder="e.g. 40"
+              className="w-full p-3 border-2 border-gray-200 rounded-xl"
+            />
+          </div>
+
+          {/* Range per kWh */}
+          <div className="group">
+            <label className="flex items-center gap-2 text-gray-700 mb-2 font-medium">
+              <Gauge className="w-4 h-4 text-blue-500" />
+              Range per kWh (km/kWh)
+            </label>
+            <input
+              type="number"
+              name="rangePerKwh"
+              value={formData.rangePerKwh}
+              onChange={handleChange}
+              placeholder="e.g. 6"
+              className="w-full p-3 border-2 border-gray-200 rounded-xl"
+            />
+          </div>
+        </>
+      )}
+
+      {/* PLAN ROUTE BUTTON */}
+      <button
+        onClick={handleSubmit}
+        disabled={calculating}
+        className="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white 
+        py-3 rounded-xl shadow-lg flex items-center justify-center gap-2"
+      >
+        <Route className="w-5 h-5" />
+        {calculating ? "Calculating..." : "Plan Route"}
+      </button>
+
+      {/* SAVE + NAVIGATION BUTTONS */}
+      {selectedRoute && (
+        <>
+          <button
+            onClick={handleSaveRoute}
+            disabled={saving}
+            className="w-full mt-4 bg-green-600 hover:bg-green-700 text-white 
+            py-3 rounded-xl shadow-lg flex items-center justify-center gap-2"
+          >
+            <Save className="w-5 h-5" />
+            {saving ? "Saving..." : "Save Route"}
+          </button>
+
+          <button
+            onClick={() => {
+              if (isNavigating) {
+                setIsNavigating(false);
+                setCurrentLocation(null);
+                showToast("Navigation stopped", "info");
+              } else {
+                setIsNavigating(true);
+                showToast("Navigation started!", "success");
+              }
+            }}
+            className={`w-full mt-4 ${
+              isNavigating
+                ? "bg-red-600 hover:bg-red-700"
+                : "bg-indigo-600 hover:bg-indigo-700"
+            } text-white py-3 rounded-xl shadow-lg flex items-center 
+            justify-center gap-2`}
+          >
+            <Navigation className="w-5 h-5" />
+            {isNavigating ? "Stop Navigation" : "Start Navigation"}
+          </button>
+        </>
+      )}
+
+      {/* ROUTE OPTIONS LIST */}
+      {routeOptions.length > 0 && (
+        <div className="mt-8">
+          <h3 className="font-bold text-indigo-700 mb-3 text-lg flex items-center gap-2">
+            <Car className="w-5 h-5" />
+            Route Options ({routeOptions.length})
+          </h3>
+
+          <div className="space-y-3">
+            {routeOptions.map((route, i) => (
+              <div
+                key={route.id}
+                onClick={() => {
+                  setSelectedRoute(route);
+                  setDirections({ routes: [route.raw] });
+                }}
+                className={`
+                  p-4 rounded-xl border-2 cursor-pointer transition-all 
+                  ${selectedRoute?.id === route.id
+                    ? "border-blue-500 bg-blue-50 shadow-md"
+                    : "border-gray-200 bg-white hover:border-blue-300"
+                  }`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-semibold text-gray-800">
+                    {route.type}
+                  </span>
+
+                  {i === 0 && (
+                    <span className="bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full font-semibold">
+                      Shortest
+                    </span>
+                  )}
+                </div>
+
+                <div className="text-sm space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Distance:</span>
+                    <span>{route.distance} km</span>
+                  </div>
+
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Duration:</span>
+                    <span>{route.time}</span>
+                  </div>
+
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">
+                      {vehicleType === "petrol" ? "Fuel" : "Energy"} Required:
+                    </span>
+                    <span>
+                      {route.energyRequired} {route.energyUnit}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+    </div>
+    {/* RIGHT PANEL — GOOGLE MAP */}
+    <div className="flex-1 relative">
+
+      {/* MAP HEADER */}
+      <div className="absolute top-4 left-4 z-[1000] bg-white/90 backdrop-blur-md 
+      px-4 py-2 rounded-xl shadow-lg border border-gray-200">
+        <p className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+          {vehicleType === "petrol" ? (
+            <Fuel className="w-4 h-4 text-amber-500" />
+          ) : (
+            <Zap className="w-4 h-4 text-green-500" />
+          )}
+          {vehicleType === "petrol" ? "Petrol/Diesel" : "Electric Vehicle"} Route Map
+        </p>
+      </div>
+
+      {/* GOOGLE MAP WRAPPER */}
+      <LoadScript 
+        googleMapsApiKey={GOOGLE_KEY} 
+        libraries={["places"]} 
+        onLoad={() => setGoogleReady(true)} 
+      >
+        <GoogleMap
+          mapContainerStyle={containerStyle}
+          center={startCoords || defaultCenter}
+          zoom={startCoords ? 11 : 5}
+          onLoad={onLoadMap}
+          options={{
+            streetViewControl: true,
+            mapTypeControl: false,
+            fullscreenControl: false,
+            zoomControl: true,
+            gestureHandling: "greedy",
+          }}
+        >
+
+          {/* START MARKER */}
+          {startCoords && (
+            <Marker
+              position={startCoords}
+              icon={startIcon}
+              label={{
+                text: "START",
+                color: "#1E3A8A",
+                fontWeight: "bold",
+                fontSize: "12px",
+              }}
+            />
+          )}
+
+          {/* DESTINATION MARKER */}
+          {destCoords && (
+            <Marker
+              position={destCoords}
+              icon={destinationIcon}
+              label={{
+                text: "DEST",
+                color: "#B91C1C",
+                fontWeight: "bold",
+                fontSize: "12px",
+              }}
+            />
+          )}
+
+          {/* SELECTED STATION MARKER */}
+          {selectedRoute?.stationCoords && (
+            <Marker
+              position={selectedRoute.stationCoords}
+              icon={
+                selectedRoute.stationType === "fuel"
+                  ? fuelStationIcon
+                  : chargingStationIcon
+              }
+              label={{
+                text: selectedRoute.stationName || "Station",
+                color: "#0284C7",
+                fontSize: "12px",
+              }}
+            />
+          )}
+
+          {/* LIVE GPS MARKER */}
+          {isNavigating && currentLocation && (
+            <Marker
+              position={currentLocation}
+              icon="https://maps.google.com/mapfiles/ms/icons/blue-dot.png"
+              label={{
+                text: "YOU",
+                color: "#0F766E",
+                fontWeight: "bold",
+                fontSize: "12px",
+              }}
+            />
+          )}
+
+          {/* GOOGLE DIRECTIONS LINE */}
+          {directions && (
+            <DirectionsRenderer
+              directions={directions}
+              options={{
+                suppressMarkers: true,
+                polylineOptions: {
+                  strokeColor: "#2563EB",
+                  strokeWeight: 6,
+                },
+              }}
+            />
+          )}
+
+          {/* MANUAL POLYLINE (fallback) */}
+          {selectedRoute?.path && !directions && (
+            <Polyline
+              path={selectedRoute.path}
+              options={{
+                strokeColor: "#2563EB",
+                strokeOpacity: 0.9,
+                strokeWeight: 5,
+              }}
+            />
+          )}
+
+        </GoogleMap>
+      </LoadScript>
+    </div>
+
+    {/* DIRECTIONS SIDE PANEL */}
+    {showDirections && (
+      <RouteDirectionsPanel
+        routes={routes}
+        isNavigating={isNavigating}
+      />
+    )}
+
+  </div>
+); // END return
+} // END component
+
+

@@ -4,6 +4,7 @@ import api from "../../api/axiosConfig";
 import { Search, X, FileText, Download, Calendar, MapPin, Fuel, Route as RouteIcon, RefreshCw, TestTube, Bug, Loader2, Plus } from "lucide-react";
 import GenerateReportModal from "../../Components/GenerateReportModal.jsx";
 import { useToast } from '../../Components/Notifications';
+import { useToastContext } from "../../Components/ToastContext.jsx"; // Same folder 
 export default function TripHistory() {
   const [search, setSearch] = useState("");
   const [routes, setRoutes] = useState([]);
