@@ -30,7 +30,10 @@ const routeSchema = new mongoose.Schema({
         type: Number,
         default: 0 
     },
-
+    fuelCost: { 
+        type: Number,
+        default: 0 
+    },
     pathCoordinates: [
         { 
             lat: { 
